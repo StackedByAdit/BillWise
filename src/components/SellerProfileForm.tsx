@@ -1,13 +1,9 @@
 import { useId, useState, type ChangeEvent, type FormEvent } from 'react'
 import { INDIAN_STATES } from '../lib/constants'
+import { writeSellerProfile } from '../lib/invoiceDraft'
 import { isValidGstin } from '../lib/validation'
-import { useLocalStorage } from '../hooks/useLocalStorage'
-import {
-  EMPTY_SELLER_PROFILE,
-  type SellerProfile,
-} from '../types/seller'
+import type { SellerProfile } from '../types/seller'
 
-const SELLER_PROFILE_KEY = 'gst-invoice:seller-profile'
 const MAX_LOGO_SIZE_BYTES = 500 * 1024
 
 const inputClassName =
@@ -15,27 +11,27 @@ const inputClassName =
 
 const labelClassName = 'mb-1.5 block text-sm font-medium text-slate-700'
 
-export function SellerProfileForm() {
+export interface SellerProfileFormProps {
+  value: SellerProfile
+  onChange: (profile: SellerProfile) => void
+}
+
+export function SellerProfileForm({ value, onChange }: SellerProfileFormProps) {
   const formId = useId()
-  const [savedProfile, setSavedProfile] = useLocalStorage<SellerProfile>(
-    SELLER_PROFILE_KEY,
-    EMPTY_SELLER_PROFILE,
-  )
-  const [formData, setFormData] = useState<SellerProfile>(() => savedProfile)
   const [gstinTouched, setGstinTouched] = useState(false)
   const [logoError, setLogoError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
 
-  const gstinValue = formData.gstin.trim().toUpperCase()
+  const gstinValue = value.gstin.trim().toUpperCase()
   const showGstinError =
     gstinTouched && gstinValue.length > 0 && !isValidGstin(gstinValue)
 
   function updateField<K extends keyof SellerProfile>(
     field: K,
-    value: SellerProfile[K],
+    fieldValue: SellerProfile[K],
   ) {
     setSaveMessage(null)
-    setFormData((prev) => ({ ...prev, [field]: value }))
+    onChange({ ...value, [field]: fieldValue })
   }
 
   function handleStateChange(event: ChangeEvent<HTMLSelectElement>) {
@@ -43,11 +39,11 @@ export function SellerProfileForm() {
     const selectedState = INDIAN_STATES.find((state) => state.code === selectedCode)
 
     setSaveMessage(null)
-    setFormData((prev) => ({
-      ...prev,
+    onChange({
+      ...value,
       stateCode: selectedCode,
       state: selectedState?.name ?? '',
-    }))
+    })
   }
 
   async function handleLogoChange(event: ChangeEvent<HTMLInputElement>) {
@@ -87,17 +83,17 @@ export function SellerProfileForm() {
     setGstinTouched(true)
     setSaveMessage(null)
 
-    if (!isValidGstin(formData.gstin)) {
+    if (!isValidGstin(value.gstin)) {
       return
     }
 
     const profileToSave: SellerProfile = {
-      ...formData,
-      gstin: formData.gstin.trim().toUpperCase(),
+      ...value,
+      gstin: value.gstin.trim().toUpperCase(),
     }
 
-    setSavedProfile(profileToSave)
-    setFormData(profileToSave)
+    writeSellerProfile(profileToSave)
+    onChange(profileToSave)
     setSaveMessage('Seller profile saved successfully.')
   }
 
@@ -120,7 +116,7 @@ export function SellerProfileForm() {
               id={`${formId}-name`}
               type="text"
               required
-              value={formData.name}
+              value={value.name}
               onChange={(event) => updateField('name', event.target.value)}
               className={inputClassName}
               placeholder="Acme Traders Pvt. Ltd."
@@ -135,7 +131,7 @@ export function SellerProfileForm() {
               id={`${formId}-gstin`}
               type="text"
               required
-              value={formData.gstin}
+              value={value.gstin}
               onChange={(event) =>
                 updateField('gstin', event.target.value.toUpperCase())
               }
@@ -166,7 +162,7 @@ export function SellerProfileForm() {
             <select
               id={`${formId}-state`}
               required
-              value={formData.stateCode}
+              value={value.stateCode}
               onChange={handleStateChange}
               className={inputClassName}
             >
@@ -187,7 +183,7 @@ export function SellerProfileForm() {
               id={`${formId}-address`}
               required
               rows={3}
-              value={formData.address}
+              value={value.address}
               onChange={(event) => updateField('address', event.target.value)}
               className={`${inputClassName} resize-y`}
               placeholder="Street, city, PIN code"
@@ -202,7 +198,7 @@ export function SellerProfileForm() {
               id={`${formId}-email`}
               type="email"
               required
-              value={formData.email}
+              value={value.email}
               onChange={(event) => updateField('email', event.target.value)}
               className={inputClassName}
               placeholder="billing@example.com"
@@ -217,7 +213,7 @@ export function SellerProfileForm() {
               id={`${formId}-phone`}
               type="tel"
               required
-              value={formData.phone}
+              value={value.phone}
               onChange={(event) => updateField('phone', event.target.value)}
               className={inputClassName}
               placeholder="+91 98765 43210"
@@ -243,10 +239,10 @@ export function SellerProfileForm() {
                 {logoError}
               </p>
             ) : null}
-            {formData.logo ? (
+            {value.logo ? (
               <div className="mt-4 flex items-center gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
                 <img
-                  src={formData.logo}
+                  src={value.logo}
                   alt="Business logo preview"
                   className="h-16 w-16 rounded-md border border-slate-200 bg-white object-contain p-1"
                 />
