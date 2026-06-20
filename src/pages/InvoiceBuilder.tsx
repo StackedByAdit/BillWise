@@ -5,6 +5,7 @@ import { InvoiceSummary } from '../components/InvoiceSummary'
 import { LineItemsTable } from '../components/LineItemsTable'
 import { SellerProfileForm } from '../components/SellerProfileForm'
 import { createInitialInvoiceDraft } from '../lib/invoiceDraft'
+import { downloadInvoicePdf } from '../lib/downloadInvoicePdf'
 import { formatIndianCurrency } from '../lib/lineItems'
 import { calculateTaxBreakdown } from '../lib/taxCalculator'
 import {
@@ -19,6 +20,8 @@ export function InvoiceBuilder() {
     createInitialInvoiceDraft(),
   )
   const [mobileTotalsOpen, setMobileTotalsOpen] = useState(false)
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
+  const [pdfError, setPdfError] = useState<string | null>(null)
 
   const taxBreakdown = useMemo(
     () =>
@@ -29,6 +32,19 @@ export function InvoiceBuilder() {
       ),
     [invoice.items, invoice.seller.stateCode, invoice.buyer.stateCode],
   )
+
+  async function handleDownloadPdf() {
+    setPdfError(null)
+    setIsDownloadingPdf(true)
+
+    try {
+      await downloadInvoicePdf(invoice, taxBreakdown)
+    } catch {
+      setPdfError('Unable to generate PDF. Please try again.')
+    } finally {
+      setIsDownloadingPdf(false)
+    }
+  }
 
   return (
     <>
@@ -62,8 +78,13 @@ export function InvoiceBuilder() {
           </div>
 
           <aside className="hidden lg:block">
-            <div className="sticky top-6">
+            <div className="sticky top-6 space-y-4">
               <InvoiceSummary breakdown={taxBreakdown} />
+              <DownloadPdfButton
+                onClick={handleDownloadPdf}
+                loading={isDownloadingPdf}
+                error={pdfError}
+              />
             </div>
           </aside>
         </div>
@@ -74,6 +95,9 @@ export function InvoiceBuilder() {
         open={mobileTotalsOpen}
         onOpen={() => setMobileTotalsOpen(true)}
         onClose={() => setMobileTotalsOpen(false)}
+        onDownloadPdf={handleDownloadPdf}
+        downloadingPdf={isDownloadingPdf}
+        pdfError={pdfError}
       />
     </>
   )
@@ -84,6 +108,41 @@ interface MobileTotalsBarProps {
   open: boolean
   onOpen: () => void
   onClose: () => void
+  onDownloadPdf: () => void
+  downloadingPdf: boolean
+  pdfError: string | null
+}
+
+function DownloadPdfButton({
+  onClick,
+  loading,
+  error,
+  fullWidth = false,
+}: {
+  onClick: () => void
+  loading: boolean
+  error: string | null
+  fullWidth?: boolean
+}) {
+  return (
+    <div className={fullWidth ? 'w-full' : undefined}>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={loading}
+        className={`rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 ${
+          fullWidth ? 'w-full' : 'w-full'
+        }`}
+      >
+        {loading ? 'Generating PDF…' : 'Download PDF'}
+      </button>
+      {error ? (
+        <p className="mt-2 text-sm text-red-600" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  )
 }
 
 function MobileTotalsBar({
@@ -91,6 +150,9 @@ function MobileTotalsBar({
   open,
   onOpen,
   onClose,
+  onDownloadPdf,
+  downloadingPdf,
+  pdfError,
 }: MobileTotalsBarProps) {
   return (
     <>
@@ -125,6 +187,12 @@ function MobileTotalsBar({
           <div className="absolute inset-x-0 bottom-0 max-h-[85svh] overflow-y-auto rounded-t-2xl bg-slate-50 p-4 shadow-2xl">
             <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-300" />
             <InvoiceSummary breakdown={breakdown} />
+            <DownloadPdfButton
+              onClick={onDownloadPdf}
+              loading={downloadingPdf}
+              error={pdfError}
+              fullWidth
+            />
             <button
               type="button"
               onClick={onClose}
