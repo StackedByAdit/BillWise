@@ -1,4 +1,6 @@
 import { useId, useState, type ChangeEvent } from 'react'
+import { FieldError } from '../components/FieldError'
+import { errorInputClass } from '../lib/formFieldHelpers'
 import { INDIAN_STATES } from '../lib/constants'
 import { isValidOptionalGstin } from '../lib/validation'
 import type { Party } from '../types/invoice'
@@ -11,15 +13,27 @@ const labelClassName = 'mb-1.5 block text-sm font-medium text-slate-700'
 export interface BuyerDetailsFormProps {
   value: Party
   onChange: (buyer: Party) => void
+  validationErrors?: {
+    name?: string
+    gstin?: string
+  }
 }
 
-export function BuyerDetailsForm({ value, onChange }: BuyerDetailsFormProps) {
+export function BuyerDetailsForm({
+  value,
+  onChange,
+  validationErrors,
+}: BuyerDetailsFormProps) {
   const formId = useId()
   const [gstinTouched, setGstinTouched] = useState(false)
 
   const gstinValue = value.gstin.trim().toUpperCase()
-  const showGstinError =
-    gstinTouched && gstinValue.length > 0 && !isValidOptionalGstin(value.gstin)
+  const gstinError =
+    validationErrors?.gstin ??
+    (gstinTouched && gstinValue.length > 0 && !isValidOptionalGstin(value.gstin)
+      ? 'Enter a valid 15-character GSTIN (e.g. 22AAAAA0000A1Z5).'
+      : undefined)
+  const nameError = validationErrors?.name
 
   function updateField<K extends keyof Party>(field: K, fieldValue: Party[K]) {
     onChange({ ...value, [field]: fieldValue })
@@ -56,9 +70,12 @@ export function BuyerDetailsForm({ value, onChange }: BuyerDetailsFormProps) {
             required
             value={value.name}
             onChange={(event) => updateField('name', event.target.value)}
-            className={inputClassName}
+            className={errorInputClass(Boolean(nameError), inputClassName)}
             placeholder="Customer or company name"
+            aria-invalid={Boolean(nameError)}
+            aria-describedby={nameError ? `${formId}-name-error` : undefined}
           />
+          <FieldError message={nameError} id={`${formId}-name-error`} />
         </div>
 
         <div>
@@ -75,24 +92,12 @@ export function BuyerDetailsForm({ value, onChange }: BuyerDetailsFormProps) {
             }
             onBlur={() => setGstinTouched(true)}
             maxLength={15}
-            className={`${inputClassName} uppercase tracking-wide ${
-              showGstinError
-                ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20'
-                : ''
-            }`}
+            className={`${errorInputClass(Boolean(gstinError), inputClassName)} uppercase tracking-wide`}
             placeholder="22AAAAA0000A1Z5"
-            aria-invalid={showGstinError}
-            aria-describedby={showGstinError ? `${formId}-gstin-error` : undefined}
+            aria-invalid={Boolean(gstinError)}
+            aria-describedby={gstinError ? `${formId}-gstin-error` : undefined}
           />
-          {showGstinError ? (
-            <p
-              id={`${formId}-gstin-error`}
-              className="mt-1.5 text-sm text-red-600"
-              role="alert"
-            >
-              Enter a valid 15-character GSTIN (e.g. 22AAAAA0000A1Z5).
-            </p>
-          ) : null}
+          <FieldError message={gstinError} id={`${formId}-gstin-error`} />
         </div>
 
         <div>

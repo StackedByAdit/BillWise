@@ -1,4 +1,6 @@
 import { useId, useState, type ChangeEvent, type FormEvent } from 'react'
+import { FieldError } from './FieldError'
+import { errorInputClass } from '../lib/formFieldHelpers'
 import { INDIAN_STATES } from '../lib/constants'
 import { writeSellerProfile } from '../lib/invoiceDraft'
 import { isValidGstin } from '../lib/validation'
@@ -14,17 +16,27 @@ const labelClassName = 'mb-1.5 block text-sm font-medium text-slate-700'
 export interface SellerProfileFormProps {
   value: SellerProfile
   onChange: (profile: SellerProfile) => void
+  validationErrors?: {
+    gstin?: string
+  }
 }
 
-export function SellerProfileForm({ value, onChange }: SellerProfileFormProps) {
+export function SellerProfileForm({
+  value,
+  onChange,
+  validationErrors,
+}: SellerProfileFormProps) {
   const formId = useId()
   const [gstinTouched, setGstinTouched] = useState(false)
   const [logoError, setLogoError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
 
   const gstinValue = value.gstin.trim().toUpperCase()
-  const showGstinError =
-    gstinTouched && gstinValue.length > 0 && !isValidGstin(gstinValue)
+  const gstinError =
+    validationErrors?.gstin ??
+    (gstinTouched && gstinValue.length > 0 && !isValidGstin(gstinValue)
+      ? 'Enter a valid 15-character GSTIN (e.g. 22AAAAA0000A1Z5).'
+      : undefined)
 
   function updateField<K extends keyof SellerProfile>(
     field: K,
@@ -137,22 +149,12 @@ export function SellerProfileForm({ value, onChange }: SellerProfileFormProps) {
               }
               onBlur={() => setGstinTouched(true)}
               maxLength={15}
-              className={`${inputClassName} uppercase tracking-wide ${
-                showGstinError ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20' : ''
-              }`}
+              className={`${errorInputClass(Boolean(gstinError), inputClassName)} uppercase tracking-wide`}
               placeholder="22AAAAA0000A1Z5"
-              aria-invalid={showGstinError}
-              aria-describedby={showGstinError ? `${formId}-gstin-error` : undefined}
+              aria-invalid={Boolean(gstinError)}
+              aria-describedby={gstinError ? `${formId}-gstin-error` : undefined}
             />
-            {showGstinError ? (
-              <p
-                id={`${formId}-gstin-error`}
-                className="mt-1.5 text-sm text-red-600"
-                role="alert"
-              >
-                Enter a valid 15-character GSTIN (e.g. 22AAAAA0000A1Z5).
-              </p>
-            ) : null}
+            <FieldError message={gstinError} id={`${formId}-gstin-error`} />
           </div>
 
           <div>

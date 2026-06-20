@@ -1,3 +1,5 @@
+import { FieldError } from './FieldError'
+import { errorInputClass } from '../lib/formFieldHelpers'
 import { GST_RATE_SLABS } from '../lib/constants'
 import {
   calculateLineItemTaxableAmount,
@@ -5,6 +7,7 @@ import {
   formatIndianCurrency,
   parseNumericInput,
 } from '../lib/lineItems'
+import type { LineItemValidationErrors } from '../lib/schemas'
 import type { LineItem } from '../types/invoice'
 
 const cellInputClassName =
@@ -18,9 +21,17 @@ const cardLabelClassName = 'mb-1 block text-xs font-medium text-slate-600'
 export interface LineItemsTableProps {
   items: LineItem[]
   onChange: (items: LineItem[]) => void
+  validationErrors?: {
+    items?: string
+    lineItems?: Record<string, LineItemValidationErrors>
+  }
 }
 
-export function LineItemsTable({ items, onChange }: LineItemsTableProps) {
+export function LineItemsTable({
+  items,
+  onChange,
+  validationErrors,
+}: LineItemsTableProps) {
   function updateItem(id: string, updates: Partial<LineItem>) {
     onChange(
       items.map((item) => (item.id === id ? { ...item, ...updates } : item)),
@@ -56,6 +67,9 @@ export function LineItemsTable({ items, onChange }: LineItemsTableProps) {
       {items.length === 0 ? (
         <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center">
           <p className="text-sm text-slate-500">No line items yet.</p>
+          {validationErrors?.items ? (
+            <FieldError message={validationErrors.items} />
+          ) : null}
           <button
             type="button"
             onClick={addItem}
@@ -86,6 +100,7 @@ export function LineItemsTable({ items, onChange }: LineItemsTableProps) {
                   <LineItemTableRow
                     key={item.id}
                     item={item}
+                    rowErrors={validationErrors?.lineItems?.[item.id]}
                     onUpdate={(updates) => updateItem(item.id, updates)}
                     onDelete={() => deleteItem(item.id)}
                   />
@@ -100,6 +115,7 @@ export function LineItemsTable({ items, onChange }: LineItemsTableProps) {
                 key={item.id}
                 item={item}
                 index={index}
+                rowErrors={validationErrors?.lineItems?.[item.id]}
                 onUpdate={(updates) => updateItem(item.id, updates)}
                 onDelete={() => deleteItem(item.id)}
               />
@@ -114,11 +130,12 @@ export function LineItemsTable({ items, onChange }: LineItemsTableProps) {
 interface LineItemRowProps {
   item: LineItem
   index?: number
+  rowErrors?: LineItemValidationErrors
   onUpdate: (updates: Partial<LineItem>) => void
   onDelete: () => void
 }
 
-function LineItemTableRow({ item, onUpdate, onDelete }: LineItemRowProps) {
+function LineItemTableRow({ item, rowErrors, onUpdate, onDelete }: LineItemRowProps) {
   const amount = calculateLineItemTaxableAmount(item)
 
   return (
@@ -152,9 +169,11 @@ function LineItemTableRow({ item, onUpdate, onDelete }: LineItemRowProps) {
           onChange={(event) =>
             onUpdate({ quantity: parseNumericInput(event.target.value) })
           }
-          className={cellInputClassName}
+          className={errorInputClass(Boolean(rowErrors?.quantity), cellInputClassName)}
           aria-label="Quantity"
+          aria-invalid={Boolean(rowErrors?.quantity)}
         />
+        <FieldError message={rowErrors?.quantity} />
       </td>
       <td className="px-2 py-3">
         <input
@@ -175,9 +194,11 @@ function LineItemTableRow({ item, onUpdate, onDelete }: LineItemRowProps) {
           onChange={(event) =>
             onUpdate({ rate: parseNumericInput(event.target.value) })
           }
-          className={cellInputClassName}
+          className={errorInputClass(Boolean(rowErrors?.rate), cellInputClassName)}
           aria-label="Rate in rupees"
+          aria-invalid={Boolean(rowErrors?.rate)}
         />
+        <FieldError message={rowErrors?.rate} />
       </td>
       <td className="px-2 py-3">
         <input
@@ -228,7 +249,7 @@ function LineItemTableRow({ item, onUpdate, onDelete }: LineItemRowProps) {
   )
 }
 
-function LineItemCard({ item, index, onUpdate, onDelete }: LineItemRowProps) {
+function LineItemCard({ item, index, rowErrors, onUpdate, onDelete }: LineItemRowProps) {
   const amount = calculateLineItemTaxableAmount(item)
 
   return (
@@ -279,8 +300,10 @@ function LineItemCard({ item, index, onUpdate, onDelete }: LineItemRowProps) {
             onChange={(event) =>
               onUpdate({ quantity: parseNumericInput(event.target.value) })
             }
-            className={cardInputClassName}
+            className={errorInputClass(Boolean(rowErrors?.quantity), cardInputClassName)}
+            aria-invalid={Boolean(rowErrors?.quantity)}
           />
+          <FieldError message={rowErrors?.quantity} />
         </div>
 
         <div>
@@ -304,8 +327,10 @@ function LineItemCard({ item, index, onUpdate, onDelete }: LineItemRowProps) {
             onChange={(event) =>
               onUpdate({ rate: parseNumericInput(event.target.value) })
             }
-            className={cardInputClassName}
+            className={errorInputClass(Boolean(rowErrors?.rate), cardInputClassName)}
+            aria-invalid={Boolean(rowErrors?.rate)}
           />
+          <FieldError message={rowErrors?.rate} />
         </div>
 
         <div>
