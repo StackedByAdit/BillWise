@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { BuyerDetailsForm } from '../components/BuyerDetailsForm'
 import { InvoiceMetaForm } from '../components/InvoiceMetaForm'
 import { InvoiceSummary } from '../components/InvoiceSummary'
@@ -7,6 +8,7 @@ import { SellerProfileForm } from '../components/SellerProfileForm'
 import { createInitialInvoiceDraft } from '../lib/invoiceDraft'
 import { downloadInvoicePdf } from '../lib/downloadInvoicePdf'
 import { formatIndianCurrency } from '../lib/lineItems'
+import { getSavedInvoice, saveInvoice } from '../lib/savedInvoices'
 import { calculateTaxBreakdown } from '../lib/taxCalculator'
 import {
   applyInvoiceMeta,
@@ -15,13 +17,27 @@ import {
 } from '../types/invoiceDraft'
 import type { TaxBreakdown } from '../types/invoice'
 
-export function InvoiceBuilder() {
-  const [invoice, setInvoice] = useState<InvoiceDraft>(() =>
-    createInitialInvoiceDraft(),
-  )
+interface InvoiceBuilderProps {
+  invoiceId?: string
+}
+
+export function InvoiceBuilder({ invoiceId }: InvoiceBuilderProps) {
+  const navigate = useNavigate()
+  const [invoice, setInvoice] = useState<InvoiceDraft>(() => {
+    if (invoiceId) {
+      const saved = getSavedInvoice(invoiceId)
+      if (saved) {
+        return saved
+      }
+    }
+
+    return createInitialInvoiceDraft()
+  })
   const [mobileTotalsOpen, setMobileTotalsOpen] = useState(false)
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [pdfError, setPdfError] = useState<string | null>(null)
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
 
   const taxBreakdown = useMemo(
     () =>
@@ -43,6 +59,24 @@ export function InvoiceBuilder() {
       setPdfError('Unable to generate PDF. Please try again.')
     } finally {
       setIsDownloadingPdf(false)
+    }
+  }
+
+  function handleSaveInvoice() {
+    setSaveMessage(null)
+    setIsSaving(true)
+
+    try {
+      saveInvoice(invoice)
+      setSaveMessage('Invoice saved successfully.')
+
+      if (!invoiceId) {
+        navigate(`/edit/${invoice.id}`, { replace: true })
+      }
+    } catch {
+      setSaveMessage('Unable to save invoice. Please try again.')
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -80,6 +114,26 @@ export function InvoiceBuilder() {
           <aside className="hidden lg:block">
             <div className="sticky top-6 space-y-4">
               <InvoiceSummary breakdown={taxBreakdown} />
+              <button
+                type="button"
+                onClick={handleSaveInvoice}
+                disabled={isSaving}
+                className="w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSaving ? 'Saving…' : 'Save Invoice'}
+              </button>
+              {saveMessage ? (
+                <p
+                  className={`text-sm font-medium ${
+                    saveMessage.includes('successfully')
+                      ? 'text-green-700'
+                      : 'text-red-600'
+                  }`}
+                  role="status"
+                >
+                  {saveMessage}
+                </p>
+              ) : null}
               <DownloadPdfButton
                 onClick={handleDownloadPdf}
                 loading={isDownloadingPdf}
@@ -96,8 +150,11 @@ export function InvoiceBuilder() {
         onOpen={() => setMobileTotalsOpen(true)}
         onClose={() => setMobileTotalsOpen(false)}
         onDownloadPdf={handleDownloadPdf}
+        onSaveInvoice={handleSaveInvoice}
         downloadingPdf={isDownloadingPdf}
+        savingInvoice={isSaving}
         pdfError={pdfError}
+        saveMessage={saveMessage}
       />
     </>
   )
@@ -109,8 +166,11 @@ interface MobileTotalsBarProps {
   onOpen: () => void
   onClose: () => void
   onDownloadPdf: () => void
+  onSaveInvoice: () => void
   downloadingPdf: boolean
+  savingInvoice: boolean
   pdfError: string | null
+  saveMessage: string | null
 }
 
 function DownloadPdfButton({
@@ -151,8 +211,11 @@ function MobileTotalsBar({
   onOpen,
   onClose,
   onDownloadPdf,
+  onSaveInvoice,
   downloadingPdf,
+  savingInvoice,
   pdfError,
+  saveMessage,
 }: MobileTotalsBarProps) {
   return (
     <>
@@ -187,6 +250,26 @@ function MobileTotalsBar({
           <div className="absolute inset-x-0 bottom-0 max-h-[85svh] overflow-y-auto rounded-t-2xl bg-slate-50 p-4 shadow-2xl">
             <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-300" />
             <InvoiceSummary breakdown={breakdown} />
+            <button
+              type="button"
+              onClick={onSaveInvoice}
+              disabled={savingInvoice}
+              className="mt-4 w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {savingInvoice ? 'Saving…' : 'Save Invoice'}
+            </button>
+            {saveMessage ? (
+              <p
+                className={`mt-2 text-sm font-medium ${
+                  saveMessage.includes('successfully')
+                    ? 'text-green-700'
+                    : 'text-red-600'
+                }`}
+                role="status"
+              >
+                {saveMessage}
+              </p>
+            ) : null}
             <DownloadPdfButton
               onClick={onDownloadPdf}
               loading={downloadingPdf}
