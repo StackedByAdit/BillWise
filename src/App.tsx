@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import { BuyerDetailsForm } from './components/BuyerDetailsForm'
+import { LineItemsTable } from './components/LineItemsTable'
 import { SellerProfileForm } from './components/SellerProfileForm'
-import { EMPTY_PARTY } from './types/invoice'
+import { createEmptyLineItem } from './lib/lineItems'
+import { EMPTY_PARTY, type LineItem } from './types/invoice'
 
 function App() {
   const [buyer, setBuyer] = useState(EMPTY_PARTY)
+  const [items, setItems] = useState<LineItem[]>([createEmptyLineItem()])
 
   return (
     <div className="flex min-h-svh flex-col bg-slate-50 font-sans text-slate-800">
@@ -22,6 +25,7 @@ function App() {
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-6 py-10">
         <SellerProfileForm />
         <BuyerDetailsForm value={buyer} onChange={setBuyer} />
+        <LineItemsTable items={items} onChange={setItems} />
       </main>
 
       <footer className="border-t border-slate-200 bg-white">
