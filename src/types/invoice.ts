@@ -8,6 +8,16 @@ export interface Party {
   phone: string
 }
 
+export const EMPTY_PARTY: Party = {
+  name: '',
+  gstin: '',
+  address: '',
+  state: '',
+  stateCode: '',
+  email: '',
+  phone: '',
+}
+
 export interface LineItem {
   id: string
   description: string

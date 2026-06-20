@@ -1,6 +1,11 @@
+import { useState } from 'react'
+import { BuyerDetailsForm } from './components/BuyerDetailsForm'
 import { SellerProfileForm } from './components/SellerProfileForm'
+import { EMPTY_PARTY } from './types/invoice'
 
 function App() {
+  const [buyer, setBuyer] = useState(EMPTY_PARTY)
+
   return (
     <div className="flex min-h-svh flex-col bg-slate-50 font-sans text-slate-800">
       <header className="border-b border-slate-200 bg-slate-900 shadow-sm">
@@ -14,8 +19,9 @@ function App() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-6 py-10">
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-6 py-10">
         <SellerProfileForm />
+        <BuyerDetailsForm value={buyer} onChange={setBuyer} />
       </main>
 
       <footer className="border-t border-slate-200 bg-white">

@@ -4,3 +4,8 @@ export const GSTIN_REGEX =
 export function isValidGstin(gstin: string): boolean {
   return GSTIN_REGEX.test(gstin.trim().toUpperCase())
 }
+
+export function isValidOptionalGstin(gstin: string): boolean {
+  const normalized = gstin.trim()
+  return normalized.length === 0 || isValidGstin(normalized)
+}
