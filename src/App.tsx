@@ -1,13 +1,33 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { BuyerDetailsForm } from './components/BuyerDetailsForm'
+import { InvoiceSummary } from './components/InvoiceSummary'
 import { LineItemsTable } from './components/LineItemsTable'
 import { SellerProfileForm } from './components/SellerProfileForm'
+import { useLocalStorage } from './hooks/useLocalStorage'
 import { createEmptyLineItem } from './lib/lineItems'
+import { calculateTaxBreakdown } from './lib/taxCalculator'
 import { EMPTY_PARTY, type LineItem } from './types/invoice'
+import { EMPTY_SELLER_PROFILE, type SellerProfile } from './types/seller'
+
+const SELLER_PROFILE_KEY = 'gst-invoice:seller-profile'
 
 function App() {
   const [buyer, setBuyer] = useState(EMPTY_PARTY)
   const [items, setItems] = useState<LineItem[]>([createEmptyLineItem()])
+  const [sellerProfile] = useLocalStorage<SellerProfile>(
+    SELLER_PROFILE_KEY,
+    EMPTY_SELLER_PROFILE,
+  )
+
+  const taxBreakdown = useMemo(
+    () =>
+      calculateTaxBreakdown(
+        items,
+        sellerProfile.stateCode,
+        buyer.stateCode,
+      ),
+    [items, sellerProfile.stateCode, buyer.stateCode],
+  )
 
   return (
     <div className="flex min-h-svh flex-col bg-slate-50 font-sans text-slate-800">
@@ -26,6 +46,7 @@ function App() {
         <SellerProfileForm />
         <BuyerDetailsForm value={buyer} onChange={setBuyer} />
         <LineItemsTable items={items} onChange={setItems} />
+        <InvoiceSummary breakdown={taxBreakdown} />
       </main>
 
       <footer className="border-t border-slate-200 bg-white">
