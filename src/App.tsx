@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react'
 import { BuyerDetailsForm } from './components/BuyerDetailsForm'
+import { InvoiceMetaForm } from './components/InvoiceMetaForm'
 import { InvoiceSummary } from './components/InvoiceSummary'
 import { LineItemsTable } from './components/LineItemsTable'
 import { SellerProfileForm } from './components/SellerProfileForm'
 import { useLocalStorage } from './hooks/useLocalStorage'
+import { assignInvoiceNumber } from './lib/invoiceNumber'
 import { createEmptyLineItem } from './lib/lineItems'
 import { calculateTaxBreakdown } from './lib/taxCalculator'
 import { EMPTY_PARTY, type LineItem } from './types/invoice'
+import { createDefaultInvoiceMeta } from './types/invoiceMeta'
 import { EMPTY_SELLER_PROFILE, type SellerProfile } from './types/seller'
 
 const SELLER_PROFILE_KEY = 'gst-invoice:seller-profile'
@@ -14,6 +17,9 @@ const SELLER_PROFILE_KEY = 'gst-invoice:seller-profile'
 function App() {
   const [buyer, setBuyer] = useState(EMPTY_PARTY)
   const [items, setItems] = useState<LineItem[]>([createEmptyLineItem()])
+  const [invoiceMeta, setInvoiceMeta] = useState(() =>
+    createDefaultInvoiceMeta(assignInvoiceNumber()),
+  )
   const [sellerProfile] = useLocalStorage<SellerProfile>(
     SELLER_PROFILE_KEY,
     EMPTY_SELLER_PROFILE,
@@ -44,6 +50,7 @@ function App() {
 
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-6 py-10">
         <SellerProfileForm />
+        <InvoiceMetaForm value={invoiceMeta} onChange={setInvoiceMeta} />
         <BuyerDetailsForm value={buyer} onChange={setBuyer} />
         <LineItemsTable items={items} onChange={setItems} />
         <InvoiceSummary breakdown={taxBreakdown} />
