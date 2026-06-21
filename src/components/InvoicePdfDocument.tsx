@@ -53,17 +53,24 @@ const styles = StyleSheet.create({
     color: '#475569',
     marginBottom: 2,
   },
+  taxInvoiceBlock: {
+    alignItems: 'flex-end',
+  },
   taxInvoiceTitle: {
     fontSize: 22,
     fontFamily: 'Helvetica-Bold',
     color: '#1e3a8a',
     textAlign: 'right',
+    lineHeight: 1.5,
+  },
+  taxInvoiceSubtitleWrap: {
+    marginTop: 14,
   },
   taxInvoiceSubtitle: {
     fontSize: 9,
     color: '#64748b',
     textAlign: 'right',
-    marginTop: 4,
+    lineHeight: 1.3,
   },
   section: {
     marginBottom: 16,
@@ -275,9 +282,11 @@ export function InvoicePdfDocument({
             </View>
           </View>
 
-          <View>
+          <View style={styles.taxInvoiceBlock}>
             <Text style={styles.taxInvoiceTitle}>TAX INVOICE</Text>
-            <Text style={styles.taxInvoiceSubtitle}>Original for Recipient</Text>
+            <View style={styles.taxInvoiceSubtitleWrap}>
+              <Text style={styles.taxInvoiceSubtitle}>Original for Recipient</Text>
+            </View>
           </View>
         </View>
 

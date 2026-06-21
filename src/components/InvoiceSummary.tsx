@@ -4,11 +4,10 @@ import type { TaxBreakdown } from '../types/invoice'
 
 export interface InvoiceSummaryProps {
   breakdown: TaxBreakdown
+  isInterState: boolean
 }
 
-export function InvoiceSummary({ breakdown }: InvoiceSummaryProps) {
-  const isInterState = breakdown.igst > 0
-
+export function InvoiceSummary({ breakdown, isInterState }: InvoiceSummaryProps) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="mb-6 border-b border-slate-100 pb-4">

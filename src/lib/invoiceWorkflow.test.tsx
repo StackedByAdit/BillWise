@@ -95,9 +95,11 @@ describe('professional invoice workflow', () => {
     reserveNextInvoiceNumber()
   })
 
-  it('exposes site author details for the footer', () => {
+  it('exposes site author details and footer link label', () => {
     expect(SITE.authorName).toBe('Aditya Kumar Gupta')
     expect(SITE.authorEmail).toContain('@')
+    expect(SITE.digitalHeroesLabel).toBe('Built for Digital Heroes')
+    expect(SITE.digitalHeroesUrl).toBe('https://digitalheroesco.com')
   })
 
   it('accepts professionally formatted GSTINs for seller and buyer', () => {
@@ -128,6 +130,82 @@ describe('professional invoice workflow', () => {
 
     expect(missing.success).toBe(false)
     expect(malformed.success).toBe(false)
+  })
+
+  it('calculates IGST for inter-state invoices with mixed GST line items', () => {
+    const invoice = createProfessionalInvoice({
+      items: [
+        {
+          id: 'line-a',
+          description: 'Service A',
+          hsnSac: '998314',
+          quantity: 2,
+          unit: 'hrs',
+          rate: 1000,
+          discountPercent: 0,
+          taxRatePercent: 5,
+        },
+        {
+          id: 'line-b',
+          description: 'Service B',
+          hsnSac: '998315',
+          quantity: 1,
+          unit: 'nos',
+          rate: 2000,
+          discountPercent: 10,
+          taxRatePercent: 12,
+        },
+        {
+          id: 'line-c',
+          description: 'Service C',
+          hsnSac: '997331',
+          quantity: 3,
+          unit: 'nos',
+          rate: 500,
+          discountPercent: 0,
+          taxRatePercent: 18,
+        },
+      ],
+    })
+    const breakdown = calculateTaxBreakdown(
+      invoice.items,
+      invoice.seller.stateCode,
+      invoice.buyer.stateCode,
+    )
+
+    expect(breakdown.cgst).toBe(0)
+    expect(breakdown.sgst).toBe(0)
+    expect(breakdown.igst).toBeGreaterThan(0)
+    expect(breakdown.grandTotal).toBeGreaterThan(breakdown.taxableValue)
+  })
+
+  it('switches from IGST to CGST/SGST when buyer state matches seller', () => {
+    const interState = createProfessionalInvoice()
+    const interBreakdown = calculateTaxBreakdown(
+      interState.items,
+      interState.seller.stateCode,
+      interState.buyer.stateCode,
+    )
+
+    const intraState = createProfessionalInvoice({
+      buyer: {
+        ...interState.buyer,
+        state: 'Maharashtra',
+        stateCode: '27',
+        gstin: '27AAAAA0000A1Z2',
+      },
+    })
+    const intraBreakdown = calculateTaxBreakdown(
+      intraState.items,
+      intraState.seller.stateCode,
+      intraState.buyer.stateCode,
+    )
+
+    expect(interBreakdown.igst).toBeGreaterThan(0)
+    expect(interBreakdown.cgst).toBe(0)
+    expect(intraBreakdown.igst).toBe(0)
+    expect(intraBreakdown.cgst).toBe(intraBreakdown.sgst)
+    expect(intraBreakdown.cgst).toBeGreaterThan(0)
   })
 
   it('calculates IGST for inter-state invoices', () => {
@@ -166,11 +244,49 @@ describe('professional invoice workflow', () => {
   })
 
   it('supports save, list, reload, duplicate, and delete', () => {
-    const invoice = createProfessionalInvoice({ id: 'persist-1' })
+    const invoice = createProfessionalInvoice({
+      id: 'persist-1',
+      items: [
+        {
+          id: 'line-1',
+          description: 'Consulting services',
+          hsnSac: '998314',
+          quantity: 2,
+          unit: 'hrs',
+          rate: 2500,
+          discountPercent: 10,
+          taxRatePercent: 18,
+        },
+        {
+          id: 'line-2',
+          description: 'Software subscription',
+          hsnSac: '997331',
+          quantity: 1,
+          unit: 'nos',
+          rate: 5000,
+          discountPercent: 0,
+          taxRatePercent: 12,
+        },
+        {
+          id: 'line-3',
+          description: 'Support retainer',
+          hsnSac: '998316',
+          quantity: 1,
+          unit: 'nos',
+          rate: 1500,
+          discountPercent: 5,
+          taxRatePercent: 5,
+        },
+      ],
+    })
 
     saveInvoice(invoice)
     expect(listSavedInvoices()).toHaveLength(1)
+    expect(getSavedInvoice('persist-1')?.items).toHaveLength(3)
     expect(getSavedInvoice('persist-1')?.buyer.name).toBe('Beta Retail LLP')
+
+    const reloaded = getSavedInvoice('persist-1')
+    expect(reloaded?.items[2]?.taxRatePercent).toBe(5)
 
     const duplicate = duplicateInvoice(invoice)
     saveInvoice(duplicate)

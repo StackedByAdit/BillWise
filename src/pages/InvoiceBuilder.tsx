@@ -63,6 +63,11 @@ export function InvoiceBuilder({ invoiceId }: InvoiceBuilderProps) {
     [invoice.items, invoice.seller.stateCode, invoice.buyer.stateCode],
   )
 
+  const isInterState =
+    invoice.seller.stateCode !== invoice.buyer.stateCode &&
+    invoice.seller.stateCode.length > 0 &&
+    invoice.buyer.stateCode.length > 0
+
   async function handleDownloadPdf() {
     setSubmitAttempted(true)
 
@@ -108,7 +113,7 @@ export function InvoiceBuilder({ invoiceId }: InvoiceBuilderProps) {
 
   return (
     <>
-      <div className="mx-auto w-full max-w-7xl px-6 py-10 pb-28 lg:pb-10">
+      <div className="mx-auto w-full max-w-7xl px-4 py-8 pb-28 sm:px-6 sm:py-10 lg:px-8 lg:pb-10">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
           <div className="flex min-w-0 flex-col gap-8">
             {submitAttempted && !validation.success ? (
@@ -158,7 +163,7 @@ export function InvoiceBuilder({ invoiceId }: InvoiceBuilderProps) {
 
           <aside className="hidden lg:block">
             <div className="sticky top-6 space-y-4">
-              <InvoiceSummary breakdown={taxBreakdown} />
+              <InvoiceSummary breakdown={taxBreakdown} isInterState={isInterState} />
               <ActionButtonWithTooltip
                 onClick={handleSaveInvoice}
                 disabled={!canSaveOrDownload}
@@ -194,6 +199,7 @@ export function InvoiceBuilder({ invoiceId }: InvoiceBuilderProps) {
 
       <MobileTotalsBar
         breakdown={taxBreakdown}
+        isInterState={isInterState}
         open={mobileTotalsOpen}
         onOpen={() => setMobileTotalsOpen(true)}
         onClose={() => setMobileTotalsOpen(false)}
@@ -212,6 +218,7 @@ export function InvoiceBuilder({ invoiceId }: InvoiceBuilderProps) {
 
 interface MobileTotalsBarProps {
   breakdown: TaxBreakdown
+  isInterState: boolean
   open: boolean
   onOpen: () => void
   onClose: () => void
@@ -262,6 +269,7 @@ function DownloadPdfButton({
 
 function MobileTotalsBar({
   breakdown,
+  isInterState,
   open,
   onOpen,
   onClose,
@@ -306,7 +314,7 @@ function MobileTotalsBar({
           />
           <div className="absolute inset-x-0 bottom-0 max-h-[85svh] overflow-y-auto rounded-t-2xl bg-slate-50 p-4 shadow-2xl">
             <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-300" />
-            <InvoiceSummary breakdown={breakdown} />
+            <InvoiceSummary breakdown={breakdown} isInterState={isInterState} />
             <ActionButtonWithTooltip
               onClick={onSaveInvoice}
               disabled={!canSaveOrDownload}
