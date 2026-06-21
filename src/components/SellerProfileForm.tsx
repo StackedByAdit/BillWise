@@ -1,9 +1,17 @@
 import { useId, useState, type ChangeEvent, type FormEvent } from 'react'
 import { FieldError } from './FieldError'
-import { errorInputClass } from '../lib/formFieldHelpers'
+import { FieldLabel } from './FieldLabel'
+import {
+  errorInputClass,
+  isValidLogoDataUrl,
+} from '../lib/formFieldHelpers'
 import { INDIAN_STATES } from '../lib/constants'
 import { writeSellerProfile } from '../lib/invoiceDraft'
-import { isValidGstin } from '../lib/validation'
+import {
+  applyStateFromGstin,
+  getGstinValidationError,
+  isValidGstin,
+} from '../lib/validation'
 import type { SellerProfile } from '../types/seller'
 
 const MAX_LOGO_SIZE_BYTES = 500 * 1024
@@ -11,32 +19,44 @@ const MAX_LOGO_SIZE_BYTES = 500 * 1024
 const inputClassName =
   'block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20'
 
-const labelClassName = 'mb-1.5 block text-sm font-medium text-slate-700'
-
 export interface SellerProfileFormProps {
   value: SellerProfile
   onChange: (profile: SellerProfile) => void
+  submitAttempted?: boolean
   validationErrors?: {
     gstin?: string
+    stateCode?: string
   }
 }
 
 export function SellerProfileForm({
   value,
   onChange,
+  submitAttempted = false,
   validationErrors,
 }: SellerProfileFormProps) {
   const formId = useId()
   const [gstinTouched, setGstinTouched] = useState(false)
+  const [stateTouched, setStateTouched] = useState(false)
   const [logoError, setLogoError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
 
-  const gstinValue = value.gstin.trim().toUpperCase()
   const gstinError =
-    validationErrors?.gstin ??
-    (gstinTouched && gstinValue.length > 0 && !isValidGstin(gstinValue)
-      ? 'Enter a valid 15-character GSTIN (e.g. 22AAAAA0000A1Z5).'
+    (submitAttempted ? validationErrors?.gstin : undefined) ??
+    (gstinTouched
+      ? getGstinValidationError(value.gstin, {
+          required: true,
+          stateCode: value.stateCode,
+        })
       : undefined)
+
+  const stateError =
+    (submitAttempted ? validationErrors?.stateCode : undefined) ??
+    (stateTouched && gstinError?.includes('implies')
+      ? gstinError
+      : undefined)
+
+  const hasLogoPreview = isValidLogoDataUrl(value.logo)
 
   function updateField<K extends keyof SellerProfile>(
     field: K,
@@ -46,10 +66,31 @@ export function SellerProfileForm({
     onChange({ ...value, [field]: fieldValue })
   }
 
+  function handleGstinChange(event: ChangeEvent<HTMLInputElement>) {
+    const nextGstin = event.target.value.toUpperCase()
+    let nextProfile: SellerProfile = { ...value, gstin: nextGstin }
+
+    if (nextGstin.length === 15 && isValidGstin(nextGstin)) {
+      nextProfile = applyStateFromGstin(nextProfile)
+    }
+
+    setSaveMessage(null)
+    onChange(nextProfile)
+  }
+
+  function handleGstinBlur() {
+    setGstinTouched(true)
+
+    if (isValidGstin(value.gstin)) {
+      onChange(applyStateFromGstin(value))
+    }
+  }
+
   function handleStateChange(event: ChangeEvent<HTMLSelectElement>) {
     const selectedCode = event.target.value
     const selectedState = INDIAN_STATES.find((state) => state.code === selectedCode)
 
+    setStateTouched(true)
     setSaveMessage(null)
     onChange({
       ...value,
@@ -79,9 +120,14 @@ export function SellerProfileForm({
       return
     }
 
-    const base64 = await readFileAsDataUrl(file)
-    updateField('logo', base64)
-    event.target.value = ''
+    try {
+      const base64 = await readFileAsDataUrl(file)
+      updateField('logo', base64)
+    } catch {
+      setLogoError('Unable to read the selected image.')
+    } finally {
+      event.target.value = ''
+    }
   }
 
   function handleRemoveLogo() {
@@ -93,16 +139,17 @@ export function SellerProfileForm({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setGstinTouched(true)
+    setStateTouched(true)
     setSaveMessage(null)
 
     if (!isValidGstin(value.gstin)) {
       return
     }
 
-    const profileToSave: SellerProfile = {
+    const profileToSave = applyStateFromGstin({
       ...value,
       gstin: value.gstin.trim().toUpperCase(),
-    }
+    })
 
     writeSellerProfile(profileToSave)
     onChange(profileToSave)
@@ -121,9 +168,7 @@ export function SellerProfileForm({
       <form id={formId} onSubmit={handleSubmit} className="space-y-5" noValidate>
         <div className="grid gap-5 md:grid-cols-2">
           <div className="md:col-span-2">
-            <label htmlFor={`${formId}-name`} className={labelClassName}>
-              Business name
-            </label>
+            <FieldLabel htmlFor={`${formId}-name`}>Business name</FieldLabel>
             <input
               id={`${formId}-name`}
               type="text"
@@ -136,37 +181,41 @@ export function SellerProfileForm({
           </div>
 
           <div>
-            <label htmlFor={`${formId}-gstin`} className={labelClassName}>
+            <FieldLabel htmlFor={`${formId}-gstin`} required>
               GSTIN
-            </label>
+            </FieldLabel>
             <input
               id={`${formId}-gstin`}
               type="text"
               required
               value={value.gstin}
-              onChange={(event) =>
-                updateField('gstin', event.target.value.toUpperCase())
-              }
-              onBlur={() => setGstinTouched(true)}
+              onChange={handleGstinChange}
+              onBlur={handleGstinBlur}
               maxLength={15}
               className={`${errorInputClass(Boolean(gstinError), inputClassName)} uppercase tracking-wide`}
-              placeholder="22AAAAA0000A1Z5"
+              placeholder="22AAAAA0000A1ZC"
               aria-invalid={Boolean(gstinError)}
               aria-describedby={gstinError ? `${formId}-gstin-error` : undefined}
             />
             <FieldError message={gstinError} id={`${formId}-gstin-error`} />
+            <p className="mt-1.5 text-xs text-slate-500">
+              State is auto-filled from the first two digits when GSTIN is valid.
+            </p>
           </div>
 
           <div>
-            <label htmlFor={`${formId}-state`} className={labelClassName}>
+            <FieldLabel htmlFor={`${formId}-state`} required>
               State
-            </label>
+            </FieldLabel>
             <select
               id={`${formId}-state`}
               required
               value={value.stateCode}
               onChange={handleStateChange}
-              className={inputClassName}
+              onBlur={() => setStateTouched(true)}
+              className={errorInputClass(Boolean(stateError), inputClassName)}
+              aria-invalid={Boolean(stateError)}
+              aria-describedby={stateError ? `${formId}-state-error` : undefined}
             >
               <option value="">Select state</option>
               {INDIAN_STATES.map((state) => (
@@ -175,12 +224,11 @@ export function SellerProfileForm({
                 </option>
               ))}
             </select>
+            <FieldError message={stateError} id={`${formId}-state-error`} />
           </div>
 
           <div className="md:col-span-2">
-            <label htmlFor={`${formId}-address`} className={labelClassName}>
-              Address
-            </label>
+            <FieldLabel htmlFor={`${formId}-address`}>Address</FieldLabel>
             <textarea
               id={`${formId}-address`}
               required
@@ -193,9 +241,7 @@ export function SellerProfileForm({
           </div>
 
           <div>
-            <label htmlFor={`${formId}-email`} className={labelClassName}>
-              Email
-            </label>
+            <FieldLabel htmlFor={`${formId}-email`}>Email</FieldLabel>
             <input
               id={`${formId}-email`}
               type="email"
@@ -208,9 +254,7 @@ export function SellerProfileForm({
           </div>
 
           <div>
-            <label htmlFor={`${formId}-phone`} className={labelClassName}>
-              Phone
-            </label>
+            <FieldLabel htmlFor={`${formId}-phone`}>Phone</FieldLabel>
             <input
               id={`${formId}-phone`}
               type="tel"
@@ -223,9 +267,9 @@ export function SellerProfileForm({
           </div>
 
           <div className="md:col-span-2">
-            <label htmlFor={`${formId}-logo`} className={labelClassName}>
+            <FieldLabel htmlFor={`${formId}-logo`}>
               Logo <span className="font-normal text-slate-500">(optional)</span>
-            </label>
+            </FieldLabel>
             <input
               id={`${formId}-logo`}
               type="file"
@@ -241,7 +285,7 @@ export function SellerProfileForm({
                 {logoError}
               </p>
             ) : null}
-            {value.logo ? (
+            {hasLogoPreview ? (
               <div className="mt-4 flex items-center gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
                 <img
                   src={value.logo}

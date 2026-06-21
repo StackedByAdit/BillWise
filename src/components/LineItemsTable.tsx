@@ -1,10 +1,14 @@
+import { useEffect, useState } from 'react'
 import { FieldError } from './FieldError'
+import { FieldErrorIcon } from './FieldErrorIcon'
+import { RequiredMark } from './FieldLabel'
 import { errorInputClass } from '../lib/formFieldHelpers'
 import { GST_RATE_SLABS } from '../lib/constants'
 import {
-  calculateLineItemTaxableAmount,
+  clampDiscountPercent,
   createEmptyLineItem,
-  formatIndianCurrency,
+  formatLineItemAmount,
+  formatNumericFieldValue,
   parseNumericInput,
 } from '../lib/lineItems'
 import type { LineItemValidationErrors } from '../lib/schemas'
@@ -13,14 +17,22 @@ import type { LineItem } from '../types/invoice'
 const cellInputClassName =
   'w-full min-w-0 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20'
 
+const numericInputClassName =
+  '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+
 const cardInputClassName =
   'block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20'
 
 const cardLabelClassName = 'mb-1 block text-xs font-medium text-slate-600'
 
+type LineItemField = 'quantity' | 'rate'
+
+type TouchedLineItemFields = Record<string, Partial<Record<LineItemField, boolean>>>
+
 export interface LineItemsTableProps {
   items: LineItem[]
   onChange: (items: LineItem[]) => void
+  submitAttempted?: boolean
   validationErrors?: {
     items?: string
     lineItems?: Record<string, LineItemValidationErrors>
@@ -30,8 +42,40 @@ export interface LineItemsTableProps {
 export function LineItemsTable({
   items,
   onChange,
+  submitAttempted = false,
   validationErrors,
 }: LineItemsTableProps) {
+  const [touchedFields, setTouchedFields] = useState<TouchedLineItemFields>({})
+
+  useEffect(() => {
+    if (items.length === 0) {
+      onChange([createEmptyLineItem()])
+    }
+  }, [items, onChange])
+
+  function markTouched(itemId: string, field: LineItemField) {
+    setTouchedFields((current) => ({
+      ...current,
+      [itemId]: { ...current[itemId], [field]: true },
+    }))
+  }
+
+  function visibleRowError(
+    itemId: string,
+    field: LineItemField,
+    message?: string,
+  ): string | undefined {
+    if (!message) {
+      return undefined
+    }
+
+    if (submitAttempted || touchedFields[itemId]?.[field]) {
+      return message
+    }
+
+    return undefined
+  }
+
   function updateItem(id: string, updates: Partial<LineItem>) {
     onChange(
       items.map((item) => (item.id === id ? { ...item, ...updates } : item)),
@@ -43,16 +87,25 @@ export function LineItemsTable({
   }
 
   function deleteItem(id: string) {
+    if (items.length === 1) {
+      setTouchedFields({})
+      onChange([createEmptyLineItem()])
+      return
+    }
+
     onChange(items.filter((item) => item.id !== id))
   }
 
+  const displayItems = items.length > 0 ? items : [createEmptyLineItem()]
+
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 pb-4">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Line Items</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Add products or services. Amounts update as you edit each row.
+            Add products or services. Amounts update once quantity and rate are
+            entered.
           </p>
         </div>
         <button
@@ -64,65 +117,89 @@ export function LineItemsTable({
         </button>
       </div>
 
-      {items.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center">
-          <p className="text-sm text-slate-500">No line items yet.</p>
-          {validationErrors?.items ? (
-            <FieldError message={validationErrors.items} />
-          ) : null}
-          <button
-            type="button"
-            onClick={addItem}
-            className="mt-4 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/20"
-          >
-            Add first row
-          </button>
+      <div className="hidden min-w-0 md:block">
+        <div className="-mx-2 overflow-x-auto px-2 pb-1">
+          <table className="w-full min-w-[680px] table-fixed border-collapse text-left text-sm">
+            <colgroup>
+              <col className="w-[24%]" />
+              <col className="w-[11%]" />
+              <col className="w-[7%]" />
+              <col className="w-[8%]" />
+              <col className="w-[10%]" />
+              <col className="w-[9%]" />
+              <col className="w-[11%]" />
+              <col className="w-[12%]" />
+              <col className="w-[8%]" />
+            </colgroup>
+            <thead>
+              <tr className="border-b border-slate-200 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <th className="px-1.5 py-2.5 font-semibold">Description</th>
+                <th className="px-1.5 py-2.5 font-semibold">HSN/SAC</th>
+                <th className="px-1.5 py-2.5 font-semibold">Qty</th>
+                <th className="px-1.5 py-2.5 font-semibold">Unit</th>
+                <th className="px-1.5 py-2.5 font-semibold">
+                  Rate (₹)
+                  <RequiredMark />
+                </th>
+                <th className="px-1.5 py-2.5 font-semibold">Disc. (%)</th>
+                <th className="px-1.5 py-2.5 font-semibold">GST (%)</th>
+                <th className="px-1.5 py-2.5 text-right font-semibold">Amount</th>
+                <th className="px-1.5 py-2.5" aria-label="Actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {displayItems.map((item) => (
+                <LineItemTableRow
+                  key={item.id}
+                  item={item}
+                  quantityError={visibleRowError(
+                    item.id,
+                    'quantity',
+                    validationErrors?.lineItems?.[item.id]?.quantity,
+                  )}
+                  rateError={visibleRowError(
+                    item.id,
+                    'rate',
+                    validationErrors?.lineItems?.[item.id]?.rate,
+                  )}
+                  onUpdate={(updates) => updateItem(item.id, updates)}
+                  onDelete={() => deleteItem(item.id)}
+                  onBlurField={(field) => markTouched(item.id, field)}
+                />
+              ))}
+            </tbody>
+          </table>
         </div>
-      ) : (
-        <>
-          <div className="hidden md:block">
-            <table className="w-full min-w-[960px] border-collapse text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  <th className="px-2 py-3 font-semibold">Description</th>
-                  <th className="px-2 py-3 font-semibold">HSN/SAC</th>
-                  <th className="w-20 px-2 py-3 font-semibold">Qty</th>
-                  <th className="w-24 px-2 py-3 font-semibold">Unit</th>
-                  <th className="w-28 px-2 py-3 font-semibold">Rate (₹)</th>
-                  <th className="w-28 px-2 py-3 font-semibold">Discount (%)</th>
-                  <th className="w-28 px-2 py-3 font-semibold">GST Rate (%)</th>
-                  <th className="w-32 px-2 py-3 text-right font-semibold">Amount</th>
-                  <th className="w-12 px-2 py-3" aria-label="Actions" />
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => (
-                  <LineItemTableRow
-                    key={item.id}
-                    item={item}
-                    rowErrors={validationErrors?.lineItems?.[item.id]}
-                    onUpdate={(updates) => updateItem(item.id, updates)}
-                    onDelete={() => deleteItem(item.id)}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
+      </div>
 
-          <div className="space-y-4 md:hidden">
-            {items.map((item, index) => (
-              <LineItemCard
-                key={item.id}
-                item={item}
-                index={index}
-                rowErrors={validationErrors?.lineItems?.[item.id]}
-                onUpdate={(updates) => updateItem(item.id, updates)}
-                onDelete={() => deleteItem(item.id)}
-              />
-            ))}
-          </div>
-        </>
-      )}
+      <div className="space-y-4 md:hidden">
+        {displayItems.map((item, index) => (
+          <LineItemCard
+            key={item.id}
+            item={item}
+            index={index}
+            quantityError={visibleRowError(
+              item.id,
+              'quantity',
+              validationErrors?.lineItems?.[item.id]?.quantity,
+            )}
+            rateError={visibleRowError(
+              item.id,
+              'rate',
+              validationErrors?.lineItems?.[item.id]?.rate,
+            )}
+            onUpdate={(updates) => updateItem(item.id, updates)}
+            onDelete={() => deleteItem(item.id)}
+            onBlurField={(field) => markTouched(item.id, field)}
+          />
+        ))}
+      </div>
+
+      {submitAttempted && validationErrors?.items ? (
+        <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2">
+          <FieldError message={validationErrors.items} />
+        </div>
+      ) : null}
     </section>
   )
 }
@@ -130,17 +207,26 @@ export function LineItemsTable({
 interface LineItemRowProps {
   item: LineItem
   index?: number
-  rowErrors?: LineItemValidationErrors
+  quantityError?: string
+  rateError?: string
   onUpdate: (updates: Partial<LineItem>) => void
   onDelete: () => void
+  onBlurField: (field: LineItemField) => void
 }
 
-function LineItemTableRow({ item, rowErrors, onUpdate, onDelete }: LineItemRowProps) {
-  const amount = calculateLineItemTaxableAmount(item)
+function LineItemTableRow({
+  item,
+  quantityError,
+  rateError,
+  onUpdate,
+  onDelete,
+  onBlurField,
+}: LineItemRowProps) {
+  const amountLabel = formatLineItemAmount(item)
 
   return (
     <tr className="border-b border-slate-100 align-top">
-      <td className="px-2 py-3">
+      <td className="px-1.5 py-2.5">
         <input
           type="text"
           value={item.description}
@@ -150,7 +236,7 @@ function LineItemTableRow({ item, rowErrors, onUpdate, onDelete }: LineItemRowPr
           aria-label="Description"
         />
       </td>
-      <td className="px-2 py-3">
+      <td className="px-1.5 py-2.5">
         <input
           type="text"
           value={item.hsnSac}
@@ -160,22 +246,22 @@ function LineItemTableRow({ item, rowErrors, onUpdate, onDelete }: LineItemRowPr
           aria-label="HSN/SAC"
         />
       </td>
-      <td className="px-2 py-3">
-        <input
-          type="number"
-          min="0"
-          step="any"
-          value={item.quantity}
-          onChange={(event) =>
-            onUpdate({ quantity: parseNumericInput(event.target.value) })
-          }
-          className={errorInputClass(Boolean(rowErrors?.quantity), cellInputClassName)}
-          aria-label="Quantity"
-          aria-invalid={Boolean(rowErrors?.quantity)}
-        />
-        <FieldError message={rowErrors?.quantity} />
+      <td className="px-1.5 py-2.5">
+        <div className="flex items-center gap-1">
+          <NumericField
+            value={item.quantity}
+            onChange={(quantity) => onUpdate({ quantity })}
+            onBlur={() => onBlurField('quantity')}
+            min={0}
+            step="any"
+            className={errorInputClass(Boolean(quantityError), cellInputClassName)}
+            aria-label="Quantity"
+            aria-invalid={Boolean(quantityError)}
+          />
+          <FieldErrorIcon message={quantityError} />
+        </div>
       </td>
-      <td className="px-2 py-3">
+      <td className="px-1.5 py-2.5">
         <input
           type="text"
           value={item.unit}
@@ -185,36 +271,40 @@ function LineItemTableRow({ item, rowErrors, onUpdate, onDelete }: LineItemRowPr
           aria-label="Unit"
         />
       </td>
-      <td className="px-2 py-3">
-        <input
-          type="number"
-          min="0"
-          step="any"
-          value={item.rate}
-          onChange={(event) =>
-            onUpdate({ rate: parseNumericInput(event.target.value) })
-          }
-          className={errorInputClass(Boolean(rowErrors?.rate), cellInputClassName)}
-          aria-label="Rate in rupees"
-          aria-invalid={Boolean(rowErrors?.rate)}
-        />
-        <FieldError message={rowErrors?.rate} />
+      <td className="px-1.5 py-2.5">
+        <div className="flex items-center gap-1">
+          <NumericField
+            value={item.rate}
+            onChange={(rate) => onUpdate({ rate })}
+            onBlur={() => onBlurField('rate')}
+            emptyWhenZero
+            min={0}
+            step="any"
+            placeholder="0.00"
+            className={errorInputClass(Boolean(rateError), cellInputClassName)}
+            aria-label="Rate in rupees"
+            aria-invalid={Boolean(rateError)}
+          />
+          <FieldErrorIcon message={rateError} />
+        </div>
       </td>
-      <td className="px-2 py-3">
-        <input
-          type="number"
-          min="0"
-          max="100"
-          step="any"
+      <td className="px-1.5 py-2.5">
+        <NumericField
           value={item.discountPercent}
-          onChange={(event) =>
-            onUpdate({ discountPercent: parseNumericInput(event.target.value) })
+          onChange={(discountPercent) =>
+            onUpdate({
+              discountPercent: clampDiscountPercent(discountPercent),
+            })
           }
+          emptyWhenZero
+          min={0}
+          max={100}
+          step="any"
           className={cellInputClassName}
           aria-label="Discount percentage"
         />
       </td>
-      <td className="px-2 py-3">
+      <td className="px-1.5 py-2.5">
         <select
           value={item.taxRatePercent}
           onChange={(event) =>
@@ -230,16 +320,20 @@ function LineItemTableRow({ item, rowErrors, onUpdate, onDelete }: LineItemRowPr
           ))}
         </select>
       </td>
-      <td className="px-2 py-3 text-right">
-        <span className="block px-2 py-1.5 font-medium tabular-nums text-slate-900">
-          {formatIndianCurrency(amount)}
+      <td className="px-1.5 py-2.5 text-right">
+        <span
+          className={`block truncate px-1 py-1.5 text-sm font-medium tabular-nums ${
+            amountLabel === '—' ? 'text-slate-400' : 'text-slate-900'
+          }`}
+        >
+          {amountLabel}
         </span>
       </td>
-      <td className="px-2 py-3">
+      <td className="px-1.5 py-2.5 text-center">
         <button
           type="button"
           onClick={onDelete}
-          className="rounded-md p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/20"
+          className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/20"
           aria-label={`Delete row for ${item.description || 'line item'}`}
         >
           <TrashIcon />
@@ -249,8 +343,16 @@ function LineItemTableRow({ item, rowErrors, onUpdate, onDelete }: LineItemRowPr
   )
 }
 
-function LineItemCard({ item, index, rowErrors, onUpdate, onDelete }: LineItemRowProps) {
-  const amount = calculateLineItemTaxableAmount(item)
+function LineItemCard({
+  item,
+  index,
+  quantityError,
+  rateError,
+  onUpdate,
+  onDelete,
+  onBlurField,
+}: LineItemRowProps) {
+  const amountLabel = formatLineItemAmount(item)
 
   return (
     <article className="rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-sm">
@@ -286,24 +388,22 @@ function LineItemCard({ item, index, rowErrors, onUpdate, onDelete }: LineItemRo
             value={item.hsnSac}
             onChange={(event) => onUpdate({ hsnSac: event.target.value })}
             className={cardInputClassName}
-            placeholder="998314"
+            placeholder="e.g. 998314"
           />
         </div>
 
         <div>
           <label className={cardLabelClassName}>Qty</label>
-          <input
-            type="number"
-            min="0"
-            step="any"
+          <NumericField
             value={item.quantity}
-            onChange={(event) =>
-              onUpdate({ quantity: parseNumericInput(event.target.value) })
-            }
-            className={errorInputClass(Boolean(rowErrors?.quantity), cardInputClassName)}
-            aria-invalid={Boolean(rowErrors?.quantity)}
+            onChange={(quantity) => onUpdate({ quantity })}
+            onBlur={() => onBlurField('quantity')}
+            min={0}
+            step="any"
+            className={errorInputClass(Boolean(quantityError), cardInputClassName)}
+            aria-invalid={Boolean(quantityError)}
           />
-          <FieldError message={rowErrors?.quantity} />
+          <FieldError message={quantityError} />
         </div>
 
         <div>
@@ -318,32 +418,37 @@ function LineItemCard({ item, index, rowErrors, onUpdate, onDelete }: LineItemRo
         </div>
 
         <div>
-          <label className={cardLabelClassName}>Rate (₹)</label>
-          <input
-            type="number"
-            min="0"
-            step="any"
+          <label className={cardLabelClassName}>
+            Rate (₹)
+            <RequiredMark />
+          </label>
+          <NumericField
             value={item.rate}
-            onChange={(event) =>
-              onUpdate({ rate: parseNumericInput(event.target.value) })
-            }
-            className={errorInputClass(Boolean(rowErrors?.rate), cardInputClassName)}
-            aria-invalid={Boolean(rowErrors?.rate)}
+            onChange={(rate) => onUpdate({ rate })}
+            onBlur={() => onBlurField('rate')}
+            emptyWhenZero
+            min={0}
+            step="any"
+            placeholder="0.00"
+            className={errorInputClass(Boolean(rateError), cardInputClassName)}
+            aria-invalid={Boolean(rateError)}
           />
-          <FieldError message={rowErrors?.rate} />
+          <FieldError message={rateError} />
         </div>
 
         <div>
           <label className={cardLabelClassName}>Discount (%)</label>
-          <input
-            type="number"
-            min="0"
-            max="100"
-            step="any"
+          <NumericField
             value={item.discountPercent}
-            onChange={(event) =>
-              onUpdate({ discountPercent: parseNumericInput(event.target.value) })
+            onChange={(discountPercent) =>
+              onUpdate({
+                discountPercent: clampDiscountPercent(discountPercent),
+              })
             }
+            emptyWhenZero
+            min={0}
+            max={100}
+            step="any"
             className={cardInputClassName}
           />
         </div>
@@ -367,8 +472,12 @@ function LineItemCard({ item, index, rowErrors, onUpdate, onDelete }: LineItemRo
 
         <div className="sm:col-span-2">
           <label className={cardLabelClassName}>Amount</label>
-          <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium tabular-nums text-slate-900">
-            {formatIndianCurrency(amount)}
+          <div
+            className={`rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium tabular-nums ${
+              amountLabel === '—' ? 'text-slate-400' : 'text-slate-900'
+            }`}
+          >
+            {amountLabel}
           </div>
         </div>
       </div>
@@ -391,5 +500,66 @@ function TrashIcon() {
         clipRule="evenodd"
       />
     </svg>
+  )
+}
+
+interface NumericFieldProps {
+  value: number
+  onChange: (value: number) => void
+  onBlur?: () => void
+  emptyWhenZero?: boolean
+  className?: string
+  min?: number
+  max?: number
+  step?: string
+  placeholder?: string
+  'aria-label'?: string
+  'aria-invalid'?: boolean
+}
+
+function NumericField({
+  value,
+  onChange,
+  onBlur,
+  emptyWhenZero = false,
+  className,
+  min,
+  max,
+  step,
+  placeholder,
+  'aria-label': ariaLabel,
+  'aria-invalid': ariaInvalid,
+}: NumericFieldProps) {
+  return (
+    <input
+      type="number"
+      inputMode="decimal"
+      min={min}
+      max={max}
+      step={step}
+      value={formatNumericFieldValue(value, emptyWhenZero)}
+      placeholder={placeholder}
+      onChange={(event) => {
+        const rawValue = event.target.value
+
+        if (rawValue === '') {
+          onChange(0)
+          return
+        }
+
+        onChange(parseNumericInput(rawValue))
+      }}
+      onFocus={(event) => {
+        if (emptyWhenZero && value === 0) {
+          return
+        }
+
+        event.currentTarget.select()
+      }}
+      onBlur={onBlur}
+      className={`${numericInputClassName} ${className ?? ''}`}
+      aria-label={ariaLabel}
+      aria-invalid={ariaInvalid}
+    />
   )
 }

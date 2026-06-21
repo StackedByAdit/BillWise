@@ -40,7 +40,7 @@ const sampleInvoice: InvoiceDraft = {
   status: 'draft',
   seller: {
     name: 'Acme Traders',
-    gstin: '27AAAAA0000A1Z5',
+    gstin: '27AAAAA0000A1Z2',
     address: 'Mumbai',
     state: 'Maharashtra',
     stateCode: '27',

@@ -17,7 +17,7 @@ const testInvoice: InvoiceDraft = {
   status: 'draft',
   seller: {
     name: 'Acme Traders Pvt. Ltd.',
-    gstin: '27AAAAA0000A1Z5',
+    gstin: '27AAAAA0000A1Z2',
     address: '123 Market Road, Mumbai',
     state: 'Maharashtra',
     stateCode: '27',
@@ -26,7 +26,7 @@ const testInvoice: InvoiceDraft = {
   },
   buyer: {
     name: 'Beta Retail LLP',
-    gstin: '29BBBBB1111B2Z6',
+    gstin: '29BBBBB1111B2ZI',
     address: '45 Commerce Street, Bengaluru',
     state: 'Karnataka',
     stateCode: '29',

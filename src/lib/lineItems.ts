@@ -19,6 +19,29 @@ export function createEmptyLineItem(): LineItem {
   }
 }
 
+export function isLineItemComplete(item: {
+  quantity: number
+  rate: number
+}): boolean {
+  return item.quantity > 0 && item.rate > 0
+}
+
+export function formatLineItemAmount(item: LineItem): string {
+  if (!isLineItemComplete(item)) {
+    return '—'
+  }
+
+  return formatIndianCurrency(calculateLineItemTaxableAmount(item))
+}
+
+export function clampDiscountPercent(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0
+  }
+
+  return Math.min(100, Math.max(0, value))
+}
+
 export function formatIndianCurrency(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
@@ -31,4 +54,15 @@ export function formatIndianCurrency(amount: number): string {
 export function parseNumericInput(value: string): number {
   const parsed = Number.parseFloat(value)
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+export function formatNumericFieldValue(
+  value: number,
+  emptyWhenZero = false,
+): string {
+  if (emptyWhenZero && value === 0) {
+    return ''
+  }
+
+  return Number.isFinite(value) ? String(value) : ''
 }

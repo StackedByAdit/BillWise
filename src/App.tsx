@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useEffect } from 'react'
 import { HashRouter, Link, NavLink, Route, Routes } from 'react-router-dom'
 import { clearDraftInvoiceNumber } from './lib/invoiceNumber'
+import { SITE } from './lib/site'
 import { EditInvoicePage } from './pages/EditInvoicePage'
 import { InvoiceBuilder } from './pages/InvoiceBuilder'
 import { SavedInvoicesList } from './pages/SavedInvoicesList'
@@ -14,7 +15,7 @@ function AppLayout({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-3">
             <div className="h-8 w-1 rounded-full bg-blue-500" aria-hidden="true" />
             <Link to="/" className="text-xl font-semibold tracking-tight text-white">
-              GST Invoice Generator
+              {SITE.name}
             </Link>
           </div>
 
@@ -53,9 +54,8 @@ function AppLayout({ children }: { children: ReactNode }) {
       <footer className="border-t border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <p className="text-sm text-slate-500">
-            &copy; {new Date().getFullYear()} GST Invoice Generator
+            &copy; {new Date().getFullYear()} {SITE.name}
           </p>
-          <p className="text-sm text-blue-600">BillWise</p>
         </div>
       </footer>
     </div>

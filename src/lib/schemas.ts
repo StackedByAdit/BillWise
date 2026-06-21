@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { GSTIN_REGEX } from './validation'
+import {
+  GSTIN_REGEX,
+  gstinMatchesStateCode,
+  hasValidGstinChecksum,
+} from './validation'
 import type { InvoiceDraft } from '../types/invoiceDraft'
 
 export const partySchema = z.object({
@@ -72,6 +76,20 @@ export const invoiceDraftSchema = invoiceSchema
         message: 'Enter a valid 15-character GSTIN for the seller.',
         path: ['seller', 'gstin'],
       })
+    } else if (!hasValidGstinChecksum(sellerGstin)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Seller GSTIN check digit is invalid.',
+        path: ['seller', 'gstin'],
+      })
+    } else if (
+      !gstinMatchesStateCode(sellerGstin, invoice.seller.stateCode)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Seller GSTIN must match the selected seller state.',
+        path: ['seller', 'gstin'],
+      })
     }
 
     if (!invoice.buyer.name.trim()) {
@@ -83,12 +101,28 @@ export const invoiceDraftSchema = invoiceSchema
     }
 
     const buyerGstin = invoice.buyer.gstin.trim()
-    if (buyerGstin && !GSTIN_REGEX.test(buyerGstin.toUpperCase())) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Enter a valid 15-character GSTIN for the buyer.',
-        path: ['buyer', 'gstin'],
-      })
+    if (buyerGstin) {
+      if (!GSTIN_REGEX.test(buyerGstin.toUpperCase())) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Enter a valid 15-character GSTIN for the buyer.',
+          path: ['buyer', 'gstin'],
+        })
+      } else if (!hasValidGstinChecksum(buyerGstin)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Buyer GSTIN check digit is invalid.',
+          path: ['buyer', 'gstin'],
+        })
+      } else if (
+        !gstinMatchesStateCode(buyerGstin, invoice.buyer.stateCode)
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Buyer GSTIN must match the selected buyer state.',
+          path: ['buyer', 'gstin'],
+        })
+      }
     }
 
     if (invoice.items.length === 0) {
@@ -129,6 +163,8 @@ export interface InvoiceValidationErrors {
   sellerGstin?: string
   buyerName?: string
   buyerGstin?: string
+  buyerState?: string
+  sellerState?: string
   items?: string
   lineItems: Record<string, LineItemValidationErrors>
 }
@@ -176,6 +212,14 @@ export function validateInvoiceDraft(
 
     if (root === 'buyer' && second === 'gstin') {
       errors.buyerGstin = issue.message
+    }
+
+    if (root === 'seller' && second === 'stateCode') {
+      errors.sellerState = issue.message
+    }
+
+    if (root === 'buyer' && second === 'stateCode') {
+      errors.buyerState = issue.message
     }
 
     if (root === 'items' && second === undefined) {

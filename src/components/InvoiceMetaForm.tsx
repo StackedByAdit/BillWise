@@ -1,4 +1,5 @@
 import { useId, type ChangeEvent } from 'react'
+import { FieldLabel } from './FieldLabel'
 import {
   getDueDateForPaymentTerms,
   PAYMENT_TERMS_OPTIONS,
@@ -8,8 +9,6 @@ import {
 
 const inputClassName =
   'block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20'
-
-const labelClassName = 'mb-1.5 block text-sm font-medium text-slate-700'
 
 export interface InvoiceMetaFormProps {
   value: InvoiceMeta
@@ -28,6 +27,8 @@ export function InvoiceMetaForm({ value, onChange }: InvoiceMetaFormProps) {
 
       if (paymentTerms !== 'custom') {
         nextMeta.dueDate = getDueDateForPaymentTerms(invoiceDate, paymentTerms)
+      } else if (updates.paymentTerms === 'custom') {
+        nextMeta.dueDate = value.dueDate || invoiceDate
       } else if (updates.invoiceDate !== undefined) {
         nextMeta.dueDate = invoiceDate
       }
@@ -52,9 +53,7 @@ export function InvoiceMetaForm({ value, onChange }: InvoiceMetaFormProps) {
 
       <div className="grid gap-5 md:grid-cols-2">
         <div>
-          <label htmlFor={`${formId}-invoice-number`} className={labelClassName}>
-            Invoice Number
-          </label>
+          <FieldLabel htmlFor={`${formId}-invoice-number`}>Invoice Number</FieldLabel>
           <input
             id={`${formId}-invoice-number`}
             type="text"
@@ -67,9 +66,7 @@ export function InvoiceMetaForm({ value, onChange }: InvoiceMetaFormProps) {
         </div>
 
         <div>
-          <label htmlFor={`${formId}-payment-terms`} className={labelClassName}>
-            Payment Terms
-          </label>
+          <FieldLabel htmlFor={`${formId}-payment-terms`}>Payment Terms</FieldLabel>
           <select
             id={`${formId}-payment-terms`}
             value={value.paymentTerms}
@@ -85,9 +82,7 @@ export function InvoiceMetaForm({ value, onChange }: InvoiceMetaFormProps) {
         </div>
 
         <div>
-          <label htmlFor={`${formId}-invoice-date`} className={labelClassName}>
-            Invoice Date
-          </label>
+          <FieldLabel htmlFor={`${formId}-invoice-date`}>Invoice Date</FieldLabel>
           <input
             id={`${formId}-invoice-date`}
             type="date"
@@ -99,9 +94,7 @@ export function InvoiceMetaForm({ value, onChange }: InvoiceMetaFormProps) {
         </div>
 
         <div>
-          <label htmlFor={`${formId}-due-date`} className={labelClassName}>
-            Due Date
-          </label>
+          <FieldLabel htmlFor={`${formId}-due-date`}>Due Date</FieldLabel>
           <input
             id={`${formId}-due-date`}
             type="date"
@@ -120,9 +113,7 @@ export function InvoiceMetaForm({ value, onChange }: InvoiceMetaFormProps) {
 
         {value.paymentTerms === 'custom' ? (
           <div className="md:col-span-2">
-            <label htmlFor={`${formId}-custom-terms`} className={labelClassName}>
-              Custom Payment Terms
-            </label>
+            <FieldLabel htmlFor={`${formId}-custom-terms`}>Custom Payment Terms</FieldLabel>
             <input
               id={`${formId}-custom-terms`}
               type="text"
@@ -137,9 +128,7 @@ export function InvoiceMetaForm({ value, onChange }: InvoiceMetaFormProps) {
         ) : null}
 
         <div className="md:col-span-2">
-          <label htmlFor={`${formId}-notes`} className={labelClassName}>
-            Notes / Terms
-          </label>
+          <FieldLabel htmlFor={`${formId}-notes`}>Notes / Terms</FieldLabel>
           <textarea
             id={`${formId}-notes`}
             rows={4}

@@ -1,48 +1,82 @@
 import { useId, useState, type ChangeEvent } from 'react'
 import { FieldError } from '../components/FieldError'
+import { FieldLabel } from '../components/FieldLabel'
 import { errorInputClass } from '../lib/formFieldHelpers'
 import { INDIAN_STATES } from '../lib/constants'
-import { isValidOptionalGstin } from '../lib/validation'
+import {
+  applyStateFromGstin,
+  getGstinValidationError,
+  isValidGstin,
+  isValidOptionalGstin,
+} from '../lib/validation'
 import type { Party } from '../types/invoice'
 
 const inputClassName =
   'block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20'
 
-const labelClassName = 'mb-1.5 block text-sm font-medium text-slate-700'
-
 export interface BuyerDetailsFormProps {
   value: Party
   onChange: (buyer: Party) => void
+  submitAttempted?: boolean
   validationErrors?: {
     name?: string
     gstin?: string
+    stateCode?: string
   }
 }
 
 export function BuyerDetailsForm({
   value,
   onChange,
+  submitAttempted = false,
   validationErrors,
 }: BuyerDetailsFormProps) {
   const formId = useId()
   const [gstinTouched, setGstinTouched] = useState(false)
+  const [stateTouched, setStateTouched] = useState(false)
 
-  const gstinValue = value.gstin.trim().toUpperCase()
   const gstinError =
-    validationErrors?.gstin ??
-    (gstinTouched && gstinValue.length > 0 && !isValidOptionalGstin(value.gstin)
-      ? 'Enter a valid 15-character GSTIN (e.g. 22AAAAA0000A1Z5).'
+    (submitAttempted ? validationErrors?.gstin : undefined) ??
+    (gstinTouched && value.gstin.trim().length > 0
+      ? getGstinValidationError(value.gstin, {
+          stateCode: value.stateCode,
+        })
       : undefined)
-  const nameError = validationErrors?.name
+
+  const stateError =
+    (submitAttempted ? validationErrors?.stateCode : undefined) ??
+    (stateTouched && gstinError?.includes('implies') ? gstinError : undefined)
+
+  const nameError = submitAttempted ? validationErrors?.name : undefined
 
   function updateField<K extends keyof Party>(field: K, fieldValue: Party[K]) {
     onChange({ ...value, [field]: fieldValue })
+  }
+
+  function handleGstinChange(event: ChangeEvent<HTMLInputElement>) {
+    const nextGstin = event.target.value.toUpperCase()
+    let nextBuyer: Party = { ...value, gstin: nextGstin }
+
+    if (nextGstin.length === 15 && isValidOptionalGstin(nextGstin)) {
+      nextBuyer = applyStateFromGstin(nextBuyer)
+    }
+
+    onChange(nextBuyer)
+  }
+
+  function handleGstinBlur() {
+    setGstinTouched(true)
+
+    if (value.gstin.trim() && isValidGstin(value.gstin)) {
+      onChange(applyStateFromGstin(value))
+    }
   }
 
   function handleStateChange(event: ChangeEvent<HTMLSelectElement>) {
     const selectedCode = event.target.value
     const selectedState = INDIAN_STATES.find((state) => state.code === selectedCode)
 
+    setStateTouched(true)
     onChange({
       ...value,
       stateCode: selectedCode,
@@ -61,9 +95,9 @@ export function BuyerDetailsForm({
 
       <div className="grid gap-5 md:grid-cols-2">
         <div className="md:col-span-2">
-          <label htmlFor={`${formId}-name`} className={labelClassName}>
+          <FieldLabel htmlFor={`${formId}-name`} required>
             Customer name
-          </label>
+          </FieldLabel>
           <input
             id={`${formId}-name`}
             type="text"
@@ -79,37 +113,41 @@ export function BuyerDetailsForm({
         </div>
 
         <div>
-          <label htmlFor={`${formId}-gstin`} className={labelClassName}>
+          <FieldLabel htmlFor={`${formId}-gstin`}>
             GSTIN{' '}
             <span className="font-normal text-slate-500">(optional)</span>
-          </label>
+          </FieldLabel>
           <input
             id={`${formId}-gstin`}
             type="text"
             value={value.gstin}
-            onChange={(event) =>
-              updateField('gstin', event.target.value.toUpperCase())
-            }
-            onBlur={() => setGstinTouched(true)}
+            onChange={handleGstinChange}
+            onBlur={handleGstinBlur}
             maxLength={15}
             className={`${errorInputClass(Boolean(gstinError), inputClassName)} uppercase tracking-wide`}
-            placeholder="22AAAAA0000A1Z5"
+            placeholder="22AAAAA0000A1ZC"
             aria-invalid={Boolean(gstinError)}
             aria-describedby={gstinError ? `${formId}-gstin-error` : undefined}
           />
           <FieldError message={gstinError} id={`${formId}-gstin-error`} />
+          <p className="mt-1.5 text-xs text-slate-500">
+            State is auto-filled from GSTIN when provided.
+          </p>
         </div>
 
         <div>
-          <label htmlFor={`${formId}-state`} className={labelClassName}>
+          <FieldLabel htmlFor={`${formId}-state`} required>
             State
-          </label>
+          </FieldLabel>
           <select
             id={`${formId}-state`}
             required
             value={value.stateCode}
             onChange={handleStateChange}
-            className={inputClassName}
+            onBlur={() => setStateTouched(true)}
+            className={errorInputClass(Boolean(stateError), inputClassName)}
+            aria-invalid={Boolean(stateError)}
+            aria-describedby={stateError ? `${formId}-state-error` : undefined}
           >
             <option value="">Select state</option>
             {INDIAN_STATES.map((state) => (
@@ -118,12 +156,11 @@ export function BuyerDetailsForm({
               </option>
             ))}
           </select>
+          <FieldError message={stateError} id={`${formId}-state-error`} />
         </div>
 
         <div className="md:col-span-2">
-          <label htmlFor={`${formId}-address`} className={labelClassName}>
-            Address
-          </label>
+          <FieldLabel htmlFor={`${formId}-address`}>Address</FieldLabel>
           <textarea
             id={`${formId}-address`}
             required
@@ -136,9 +173,7 @@ export function BuyerDetailsForm({
         </div>
 
         <div>
-          <label htmlFor={`${formId}-email`} className={labelClassName}>
-            Email
-          </label>
+          <FieldLabel htmlFor={`${formId}-email`}>Email</FieldLabel>
           <input
             id={`${formId}-email`}
             type="email"
@@ -151,9 +186,7 @@ export function BuyerDetailsForm({
         </div>
 
         <div>
-          <label htmlFor={`${formId}-phone`} className={labelClassName}>
-            Phone
-          </label>
+          <FieldLabel htmlFor={`${formId}-phone`}>Phone</FieldLabel>
           <input
             id={`${formId}-phone`}
             type="tel"

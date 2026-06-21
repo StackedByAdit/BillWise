@@ -44,6 +44,7 @@ export function InvoiceBuilder({ invoiceId }: InvoiceBuilderProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [pdfError, setPdfError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [submitAttempted, setSubmitAttempted] = useState(false)
 
   const validation = useMemo(
     () => validateInvoiceDraft(invoice),
@@ -63,6 +64,8 @@ export function InvoiceBuilder({ invoiceId }: InvoiceBuilderProps) {
   )
 
   async function handleDownloadPdf() {
+    setSubmitAttempted(true)
+
     if (!canSaveOrDownload) {
       return
     }
@@ -80,6 +83,8 @@ export function InvoiceBuilder({ invoiceId }: InvoiceBuilderProps) {
   }
 
   function handleSaveInvoice() {
+    setSubmitAttempted(true)
+
     if (!canSaveOrDownload) {
       return
     }
@@ -106,7 +111,7 @@ export function InvoiceBuilder({ invoiceId }: InvoiceBuilderProps) {
       <div className="mx-auto w-full max-w-7xl px-6 py-10 pb-28 lg:pb-10">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
           <div className="flex min-w-0 flex-col gap-8">
-            {!validation.success ? (
+            {submitAttempted && !validation.success ? (
               <ValidationAlert messages={validation.messages} />
             ) : null}
             <SellerProfileForm
@@ -114,8 +119,10 @@ export function InvoiceBuilder({ invoiceId }: InvoiceBuilderProps) {
               onChange={(seller) =>
                 setInvoice((current) => ({ ...current, seller }))
               }
+              submitAttempted={submitAttempted}
               validationErrors={{
                 gstin: validation.errors.sellerGstin,
+                stateCode: validation.errors.sellerState,
               }}
             />
             <InvoiceMetaForm
@@ -129,9 +136,11 @@ export function InvoiceBuilder({ invoiceId }: InvoiceBuilderProps) {
               onChange={(buyer) =>
                 setInvoice((current) => ({ ...current, buyer }))
               }
+              submitAttempted={submitAttempted}
               validationErrors={{
                 name: validation.errors.buyerName,
                 gstin: validation.errors.buyerGstin,
+                stateCode: validation.errors.buyerState,
               }}
             />
             <LineItemsTable
@@ -139,6 +148,7 @@ export function InvoiceBuilder({ invoiceId }: InvoiceBuilderProps) {
               onChange={(items) =>
                 setInvoice((current) => ({ ...current, items }))
               }
+              submitAttempted={submitAttempted}
               validationErrors={{
                 items: validation.errors.items,
                 lineItems: validation.errors.lineItems,

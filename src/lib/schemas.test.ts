@@ -15,7 +15,7 @@ const validInvoice: InvoiceDraft = {
   status: 'draft',
   seller: {
     name: 'Acme Traders',
-    gstin: '27AAAAA0000A1Z5',
+    gstin: '27AAAAA0000A1Z2',
     address: 'Mumbai',
     state: 'Maharashtra',
     stateCode: '27',
@@ -99,7 +99,7 @@ describe('validateInvoiceDraft', () => {
     expect(result.errors.lineItems['line-bad']?.rate).toBeTruthy()
   })
 
-  it('flags invalid GSTIN format for seller and buyer', () => {
+  it('flags invalid GSTIN format, checksum, and state mismatch', () => {
     const sellerResult = validateInvoiceDraft({
       ...validInvoice,
       seller: { ...validInvoice.seller, gstin: 'INVALID-GSTIN' },
@@ -108,8 +108,23 @@ describe('validateInvoiceDraft', () => {
       ...validInvoice,
       buyer: { ...validInvoice.buyer, gstin: '123' },
     })
+    const checksumResult = validateInvoiceDraft({
+      ...validInvoice,
+      seller: { ...validInvoice.seller, gstin: '27AAAAA0000A1Z5' },
+    })
+    const mismatchResult = validateInvoiceDraft({
+      ...validInvoice,
+      seller: {
+        ...validInvoice.seller,
+        gstin: '29AABCT1332L1ZA',
+        stateCode: '27',
+        state: 'Maharashtra',
+      },
+    })
 
     expect(sellerResult.errors.sellerGstin).toMatch(/valid 15-character GSTIN/)
     expect(buyerResult.errors.buyerGstin).toMatch(/valid 15-character GSTIN/)
+    expect(checksumResult.errors.sellerGstin).toMatch(/check digit is invalid/)
+    expect(mismatchResult.errors.sellerGstin).toMatch(/match the selected seller state/)
   })
 })
